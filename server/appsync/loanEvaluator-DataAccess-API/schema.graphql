@@ -1,0 +1,8 @@
+type Query {
+	getRecordList(type: String!, input: AWSJSON!): [AWSJSON]
+	getPaginatedRecordList(type: String!, input: AWSJSON!): AWSJSON
+}
+
+schema {
+	query: Query
+}

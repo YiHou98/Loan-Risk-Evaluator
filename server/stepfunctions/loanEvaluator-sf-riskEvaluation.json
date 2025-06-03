@@ -1,0 +1,131 @@
+{
+  "Comment": "Single‐stage pipeline: CleanAndFeatureEngineer with centralized error handling.",
+  "StartAt": "CleanAndFeatureEngineer",
+  "States": {
+    "CleanAndFeatureEngineer": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:eu-west-1:290981215299:function:loadEvaluator-fn-CleanAndTransform",
+      "Comment": "Single stage: clean raw application data and engineer features.",
+      "TimeoutSeconds": 120,
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException",
+            "DataValidationError"
+          ],
+          "IntervalSeconds": 3,
+          "MaxAttempts": 2,
+          "BackoffRate": 1.5
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.errorInfo",
+          "Next": "SendToDLQ"
+        }
+      ],
+      "Next": "CallScoringService"
+    },
+    "CallScoringService": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:eu-west-1:290981215299:function:loanEvaluator-fn-CallScoringService",
+      "Comment": "Calls the external scoring service.",
+      "TimeoutSeconds": 60,
+      "InputPath": "$.features_for_scoring",
+      "ResultPath": "$.risk_score",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException",
+            "ScoringServiceCallFailed"
+          ],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 3,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "SendToDLQ",
+          "ResultPath": "$.errorInfo"
+        }
+      ],
+      "Next": "PersistScoredApplication"
+    },
+    "PersistScoredApplication": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:eu-west-1:290981215299:function:loanEvaluator-fn-PersistScoredApplication",
+      "Comment": "Persists the scored application to the database.",
+      "TimeoutSeconds": 90,
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException",
+            "DatabaseConnectionError",
+            "DatabaseWriteError"
+          ],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 3,
+          "BackoffRate": 2,
+          "JitterStrategy": "FULL"
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "Next": "SendToDLQ",
+          "ResultPath": "$.errorInfo"
+        }
+      ],
+      "End": true
+    },
+    "SendToDLQ": {
+      "Type": "Task",
+      "Comment": "Format error details and send to SQS DLQ.",
+      "Resource": "arn:aws:states:::sqs:sendMessage",
+      "Parameters": {
+        "QueueUrl": "https://sqs.eu-west-1.amazonaws.com/290981215299/application-failure-dlq",
+        "MessageBody": {
+          "failedStage": "CleanAndFeatureEngineer",
+          "errorInfo.$": "$.errorInfo",
+          "input.$": "$$.Execution.Input"
+        }
+      },
+      "ResultPath": "$.sqsSendMessageResult",
+      "Catch": [
+        {
+          "ErrorEquals": [
+            "States.ALL"
+          ],
+          "ResultPath": "$.sendToDlqErrorDetails",
+          "Next": "ProcessingFailed"
+        }
+      ],
+      "Next": "ProcessingFailed"
+    },
+    "ProcessingFailed": {
+      "Type": "Fail",
+      "Comment": "State machine fails after DLQ send attempt (regardless of success).",
+      "Error": "ApplicationProcessingFailedError",
+      "CausePath": "$.errorInfo.Cause"
+    }
+  }
+}
