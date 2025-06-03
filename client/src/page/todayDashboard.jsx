@@ -176,7 +176,6 @@ const selectStyle = {
     borderRadius: '4px',
     border: '1px solid #ced4da',
     fontSize: '14px',
-    backgroundColor:'#495057',
     minWidth: '120px',
 };
 
