@@ -9,7 +9,7 @@ def lambda_handler(event, context):
 import json
 from datetime import datetime, timezone
 
-import psycopg2
+import psycopg2 # type: ignore
 from aws_lambda_powertools import Logger, Tracer
 from aws_lambda_powertools.utilities.typing import LambdaContext
 
