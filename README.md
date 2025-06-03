@@ -96,11 +96,13 @@ A serverless, event-driven AWS pipeline that ingests raw loan applications from 
    git clone https://github.com/YiHou98/Loan-Risk-Evaluator.git
    cd Loan-Risk-Evaluator
 2. **Client Setup**
+    ```bash
     cd client
     npm install
     npm run dev 
-3. **AWS Deployment via CDK**
+4. **AWS Deployment via CDK**
     Note: CDK stacks for deployment are under development and will be added in a future release.
+    ```bash
     Install CDK CLI:  npm install -g aws-cdk
     Install Python Dependencies: pip install -r requirements.txt
     Bootstrap Your AWS Environment: cdk bootstrap aws://<ACCOUNT_ID>/<REGION>
