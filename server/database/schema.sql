@@ -28,13 +28,12 @@ CREATE TABLE IF NOT EXISTS scored_loan_applications (
 CREATE INDEX IF NOT EXISTS idx_processing_timestamp
   ON scored_loan_applications(processing_timestamp);
 
--- 2.2 Index on addr_state for state‐based filtering
+CREATE INDEX IF NOT EXISTS idx_processing_date
+  ON scored_loan_applications ((DATE(processing_timestamp)));
+
 CREATE INDEX IF NOT EXISTS idx_addr_state
   ON scored_loan_applications(addr_state);
 
 CREATE INDEX IF NOT EXISTS idx_state_ts
   ON scored_loan_applications(addr_state, processing_timestamp DESC);
-
-CREATE INDEX IF NOT EXISTS idx_processing_date
-  ON scored_loan_applications ((DATE(processing_timestamp)));
 
