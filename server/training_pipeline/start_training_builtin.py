@@ -22,7 +22,7 @@ s3_output_path = f's3://{s3_bucket_name}/models/'
 # Create SKLearn estimator using SageMaker's built-in container
 sklearn_estimator = SKLearn(
     entry_point='train.py',
-    source_dir='src',
+    source_dir=os.path.join(os.path.dirname(__file__), 'src'),
     framework_version='0.23-1',
     py_version='py3',
     role=role_arn,
