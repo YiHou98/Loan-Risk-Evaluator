@@ -1,0 +1,21 @@
+{
+    "resolvers": [
+     {
+        "id": "getPaginatedRecordList",
+        "data_source": "trace360-fn-dataBridge",
+        "field_name": "getPaginatedRecordList",
+        "type_name": "Query",
+        "request_mapping_template": "{\"version\": \"2017-02-28\",\"operation\": \"Invoke\",\"payload\": {\"action\": \"paginatedList\",\"type\": \"$context.arguments.type\",\"body\": $util.toJson($context.arguments.input)}}",
+        "response_mapping_template": "$util.toJson($context.result)"
+      },
+      {
+        "id": "getRecordList",
+        "data_source": "trace360-fn-dataBridge",
+        "field_name": "getRecordList",
+        "type_name": "Query",
+        "request_mapping_template": "{\"version\": \"2017-02-28\",\"operation\": \"Invoke\",\"payload\": {\"action\": \"list\",\"type\": \"$context.arguments.type\",\"body\": $util.toJson($context.arguments.input)}}",
+        "response_mapping_template": "$util.toJson($context.result)"
+      }
+    ]
+}
+  

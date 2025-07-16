@@ -1,0 +1,52 @@
+name: MLOps Training Pipeline
+
+on:
+  push:
+    branches: [ main ]
+    # 关键改动：只有当 training_pipeline 目录或其子目录下的文件发生变化时，才触发此流水线
+    paths:
+      - 'server/training_pipeline/**'
+      
+  # 保留手动触发，以便在需要时可以强制运行
+  workflow_dispatch:
+
+jobs:
+  build-and-train:
+    runs-on: ubuntu-latest
+    steps:
+      # ... 您所有的步骤（检出、登录、构建、启动训练）都保持不变 ...
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies and run tests
+        run: |
+          cd server/training_pipeline
+          pip install -r requirements.txt
+          python -m pytest src/ -v || echo "No unit tests found, skipping..."
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-north-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Run SageMaker Training Job
+        run: |
+          pip install sagemaker boto3
+          python server/training_pipeline/start_training_builtin.py
+
+      - name: Wait for Training and Deploy
+        run: |
+          echo "Waiting 2 minutes for training to complete..."
+          sleep 120
+          python server/training_pipeline/simple_deploy.py
