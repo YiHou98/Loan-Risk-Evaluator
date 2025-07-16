@@ -9,8 +9,6 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
-# Test comment to trigger workflow rebuild
-
 # Handle missing utils.py gracefully
 try:
     import utils
