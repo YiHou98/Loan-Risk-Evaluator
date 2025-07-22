@@ -1,26 +1,32 @@
 import os
 import sys
 import argparse
-import pandas as pd
-import numpy as np
-import joblib
-import tarfile
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
-# Handle missing utils.py gracefully
+# Install required packages if not available
 try:
-    import utils
-    print("utils.py imported successfully")
-except ImportError:
-    print("Warning: utils.py not found. Using placeholder functions.")
-    # Create a placeholder utils module
-    class Utils:
-        @staticmethod
-        def placeholder_function():
-            return None
-    utils = Utils()
+    import pandas as pd
+    import numpy as np
+    import joblib
+    from sklearn.ensemble import RandomForestRegressor
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+    from sklearn.preprocessing import LabelEncoder
+except ImportError as e:
+    print(f"Missing required package: {e}")
+    print("Installing packages...")
+    import subprocess
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "pandas", "numpy", "scikit-learn", "joblib"])
+    
+    # Try importing again
+    import pandas as pd
+    import numpy as np
+    import joblib
+    from sklearn.ensemble import RandomForestRegressor
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+    from sklearn.preprocessing import LabelEncoder
+
+import utils
 
 def main():
     parser = argparse.ArgumentParser()
@@ -132,71 +138,12 @@ def main():
             print(f"Available columns: {df.columns.tolist()}")
             sys.exit(1)
         
-        # Select features to predict interest rate (excluding int_rate as it's our target)
-        essential_features = [
-            'loan_amnt',          # Loan amount
-            'funded_amnt',        # Amount funded
-            'installment',        # Monthly installment
-            'annual_inc',         # Annual income
-            'dti',                # Debt-to-income ratio
-            'open_acc',           # Number of open accounts
-            'pub_rec',            # Number of public records
-            'revol_bal',          # Revolving credit balance
-            'revol_util',         # Revolving utilization rate
-            'total_acc',          # Total number of accounts
-            'delinq_2yrs',        # Delinquencies in past 2 years
-            'inq_last_6mths'      # Credit inquiries in last 6 months
-        ]
+        # Use utils.py preprocessing pipeline
+        df, feature_columns, label_encoders = utils.preprocess_training_data(df)
         
-        # Check which features are available in the dataset
-        available_features = [col for col in essential_features if col in df.columns]
-        feature_columns = available_features
-        
-        print(f"Essential features requested: {len(essential_features)}")
-        print(f"Available features in dataset: {len(feature_columns)}")
-        print(f"Selected features: {feature_columns}")
-        
-        # Handle missing values and infinite values
-        print(f"Checking for missing values...")
-        missing_counts = df[feature_columns].isnull().sum()
-        columns_with_missing = missing_counts[missing_counts > 0]
-        if len(columns_with_missing) > 0:
-            print(f"Found missing values in {len(columns_with_missing)} columns:")
-            for col, count in columns_with_missing.items():
-                print(f"  - {col}: {count} missing values")
-            
-            # Fill missing values with median for numeric columns
-            df[feature_columns] = df[feature_columns].fillna(df[feature_columns].median())
-            print("Missing values filled with median values")
-        
-        # Handle infinite values
-        print("Checking for infinite values...")
-        for col in feature_columns:
-            inf_count = np.isinf(df[col]).sum()
-            if inf_count > 0:
-                print(f"Found {inf_count} infinite values in {col}")
-                # Replace infinite values with median
-                median_val = df[col].replace([np.inf, -np.inf], np.nan).median()
-                df[col] = df[col].replace([np.inf, -np.inf], median_val)
-        
-        # Final check for any remaining NaN or infinite values
-        print("Final data validation...")
-        for col in feature_columns:
-            nan_count = df[col].isnull().sum()
-            inf_count = np.isinf(df[col]).sum()
-            if nan_count > 0 or inf_count > 0:
-                print(f"Warning: {col} still has {nan_count} NaN and {inf_count} infinite values")
-                # Force fill any remaining issues
-                df[col] = df[col].fillna(df[col].median())
-                df[col] = df[col].replace([np.inf, -np.inf], df[col].median())
-        
+        # Final data preparation and validation
         X = df[feature_columns]
         y = df['int_rate']
-        
-        print(f"Features selected: {len(feature_columns)}")
-        print(f"Feature columns: {feature_columns[:10]}...")  # Show first 10 features
-        print(f"Target variable distribution:")
-        print(y.value_counts())
         
         # Check for any remaining issues
         if X.shape[0] == 0:
@@ -207,7 +154,19 @@ def main():
             print("Error: No feature columns found")
             sys.exit(1)
         
-        # Split the data (no stratify for regression)
+        print(f"Final training data shape: {X.shape}")
+        print(f"Target variable (int_rate) stats: mean={y.mean():.2f}, std={y.std():.2f}, range=[{y.min():.2f}, {y.max():.2f}]")
+        
+        # Check for any NaN or infinite values in final data
+        nan_count = X.isnull().sum().sum()
+        inf_count = np.isinf(X.select_dtypes(include=[np.number])).sum().sum()
+        if nan_count > 0 or inf_count > 0:
+            print(f"Warning: Found {nan_count} NaN and {inf_count} infinite values in final features")
+            # Final cleanup
+            X = X.fillna(X.median())
+            X = X.replace([np.inf, -np.inf], X.median())
+        
+        # Split the data after all preprocessing (no stratify for regression)
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.2, random_state=42
         )
@@ -215,10 +174,13 @@ def main():
         print(f"Training set size: {X_train.shape[0]}")
         print(f"Test set size: {X_test.shape[0]}")
         
-        # Train the model
+        # Train the model with better hyperparameters
         print(f"Training Random Forest Regressor with {args.n_estimators} estimators...")
         model = RandomForestRegressor(
-            n_estimators=args.n_estimators,
+            n_estimators=max(args.n_estimators, 200),  # Minimum 200 estimators
+            max_depth=15,                              # Limit depth to prevent overfitting
+            min_samples_split=5,                       # Require at least 5 samples to split
+            min_samples_leaf=2,                        # Minimum 2 samples per leaf
             random_state=42,
             n_jobs=-1  # Use all available CPUs
         )
@@ -262,18 +224,30 @@ def main():
         feature_importance_path = os.path.join(args.model_dir, 'feature_importance.joblib')
         joblib.dump(feature_importance, feature_importance_path)
         
+        # Save label encoders for categorical features
+        if label_encoders:
+            encoders_path = os.path.join(args.model_dir, 'label_encoders.joblib')
+            joblib.dump(label_encoders, encoders_path)
+            print(f"Label encoders saved: {list(label_encoders.keys())}")
+        
         # Save model metadata
         metadata = {
-            'n_estimators': args.n_estimators,
+            'n_estimators': max(args.n_estimators, 200),
             'mse': mse,
             'mae': mae,
             'r2_score': r2,
             'feature_columns': feature_columns,
+            'categorical_features': list(label_encoders.keys()),
             'model_type': 'RandomForestRegressor',
             'data_shape': df.shape,
             'target_mean': y.mean(),
             'target_std': y.std(),
-            'target_range': [y.min(), y.max()]
+            'target_range': [y.min(), y.max()],
+            'model_params': {
+                'max_depth': 15,
+                'min_samples_split': 5,
+                'min_samples_leaf': 2
+            }
         }
         metadata_path = os.path.join(args.model_dir, 'metadata.joblib')
         joblib.dump(metadata, metadata_path)
@@ -303,13 +277,21 @@ def main():
         
     except Exception as e:
         print(f"Error during training: {e}")
+        print(f"Error type: {type(e).__name__}")
         import traceback
         traceback.print_exc()
         
-        # Write failure indicator
-        failure_file = os.path.join(args.model_dir, 'FAILURE')
-        with open(failure_file, 'w') as f:
-            f.write(f'Training failed: {str(e)}')
+        # Write failure indicator with detailed error
+        try:
+            os.makedirs(args.model_dir, exist_ok=True)
+            failure_file = os.path.join(args.model_dir, 'FAILURE')
+            with open(failure_file, 'w') as f:
+                f.write(f'Training failed: {str(e)}\n')
+                f.write(f'Error type: {type(e).__name__}\n')
+                f.write('Full traceback:\n')
+                traceback.print_exc(file=f)
+        except Exception as write_error:
+            print(f"Could not write failure file: {write_error}")
         
         sys.exit(1)
 

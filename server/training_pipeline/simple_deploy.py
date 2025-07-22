@@ -81,12 +81,22 @@ def explain_interest_rate(loan_data, interest_rate):
         income = loan_data.get('annual_inc', 0)
         loan_amt = loan_data.get('loan_amnt', 0)
         
+        # Define risk thresholds based on business rules
+        high_risk_rate_threshold = 12.0  # Above 12% is high rate
+        low_risk_rate_threshold = 8.0    # Below 8% is low rate
+        
         if dti > 40:
-            return f"Your {interest_rate:.2f}% rate reflects higher risk due to debt-to-income ratio of {dti:.1f}% (above 40% threshold)."
+            if interest_rate > high_risk_rate_threshold:
+                return f"Your {interest_rate:.2f}% rate is appropriate for higher risk profile (DTI: {dti:.1f}% above 40% threshold)."
+            else:
+                return f"Your {interest_rate:.2f}% rate is favorable despite higher DTI of {dti:.1f}% - possibly due to other strong factors."
         elif dti < 20:
-            return f"Your {interest_rate:.2f}% rate reflects lower risk with excellent debt-to-income ratio of {dti:.1f}%."
+            if interest_rate < low_risk_rate_threshold:
+                return f"Your excellent {interest_rate:.2f}% rate reflects low risk with DTI of {dti:.1f}% (well below 20%)."
+            else:
+                return f"Your {interest_rate:.2f}% rate is higher than expected for low DTI of {dti:.1f}% - other risk factors may apply."
         else:
-            return f"Your {interest_rate:.2f}% rate reflects moderate risk with debt-to-income ratio of {dti:.1f}%."
+            return f"Your {interest_rate:.2f}% rate reflects moderate risk with DTI of {dti:.1f}% (standard range)."
     
     try:
         # Try environment variable first, then Secrets Manager
