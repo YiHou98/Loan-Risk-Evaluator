@@ -29,18 +29,43 @@ print(f"Retrieving API key from Secrets Manager: {secret_name}")
 anthropic_api_key = get_secret(secret_name, aws_region)
 
 def get_latest_training_job():
-    """Get the most recent completed training job"""
+    """Get the most recent training job and wait for completion if needed"""
     try:
+        # First get the most recent training job regardless of status
         response = sagemaker_client.list_training_jobs(
             SortBy='CreationTime',
             SortOrder='Descending',
-            StatusEquals='Completed',
             MaxResults=1
         )
-        if response['TrainingJobSummaries']:
-            return response['TrainingJobSummaries'][0]['TrainingJobName']
+        
+        if not response['TrainingJobSummaries']:
+            raise Exception("No training jobs found")
+        
+        job_name = response['TrainingJobSummaries'][0]['TrainingJobName']
+        job_status = response['TrainingJobSummaries'][0]['TrainingJobStatus']
+        
+        print(f"Found training job: {job_name}, Status: {job_status}")
+        
+        if job_status == 'Completed':
+            return job_name
+        elif job_status in ['InProgress', 'Stopping']:
+            print(f"Training job is {job_status}. Waiting for completion...")
+            # Wait for job completion
+            waiter = sagemaker_client.get_waiter('training_job_completed_or_stopped')
+            waiter.wait(TrainingJobName=job_name)
+            
+            # Check final status
+            final_response = sagemaker_client.describe_training_job(TrainingJobName=job_name)
+            final_status = final_response['TrainingJobStatus']
+            
+            if final_status == 'Completed':
+                print(f"Training job completed successfully!")
+                return job_name
+            else:
+                raise Exception(f"Training job failed with status: {final_status}")
         else:
-            raise Exception("No completed training jobs found")
+            raise Exception(f"Training job in unexpected status: {job_status}")
+            
     except Exception as e:
         print(f"Error getting latest training job: {e}")
         raise
