@@ -257,52 +257,28 @@ try:
     
     if endpoint_exists(endpoint_name):
         print(f"Endpoint {endpoint_name} already exists. Updating with new model...")
-        # Update existing endpoint
+        # Update existing endpoint without waiting
         predictor = sklearn_model.deploy(
             initial_instance_count=1,
             instance_type='ml.m5.large',
             endpoint_name=endpoint_name,
-            update_endpoint=True
+            update_endpoint=True,
+            wait=False  # Don't wait for deployment to complete
         )
     else:
         print(f"Creating new endpoint: {endpoint_name}")
-        # Create new endpoint
+        # Create new endpoint without waiting
         predictor = sklearn_model.deploy(
             initial_instance_count=1,
             instance_type='ml.m5.large',
-            endpoint_name=endpoint_name
+            endpoint_name=endpoint_name,
+            wait=False  # Don't wait for deployment to complete
         )
     
-    print(f"Model deployed successfully!")
+    print(f"Model deployment initiated!")
     print(f"Endpoint name: {endpoint_name}")
-    
-    # Set JSON serializers for testing
-    from sagemaker.serializers import JSONSerializer
-    from sagemaker.deserializers import JSONDeserializer
-    predictor.serializer = JSONSerializer()
-    predictor.deserializer = JSONDeserializer()
-    
-    # Test the endpoint with all essential features
-    test_data = {
-        "loan_amnt": 10000,         # Loan amount
-        "funded_amnt": 10000,       # Amount funded
-        "installment": 300.25,      # Monthly installment
-        "annual_inc": 50000,        # Annual income
-        "dti": 18.2,               # Debt-to-income ratio
-        "open_acc": 6,             # Number of open accounts
-        "pub_rec": 0,              # Number of public records
-        "revol_bal": 8500,         # Revolving credit balance
-        "revol_util": 55.8,        # Revolving utilization rate
-        "total_acc": 12,           # Total number of accounts
-        "delinq_2yrs": 0,          # Delinquencies in past 2 years
-        "inq_last_6mths": 1        # Credit inquiries in last 6 months
-    }
-    
-    try:
-        result = predictor.predict(test_data)
-        print(f"Test prediction result: {result}")
-    except Exception as e:
-        print(f"Test prediction failed: {e}")
+    print(f"Deployment will continue in background. Check AWS SageMaker console for status.")
+    print(f"Endpoint will be ready in 5-8 minutes.")
     
 except Exception as e:
     print(f"Error during deployment: {e}")
