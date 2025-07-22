@@ -14,7 +14,6 @@ jobs:
   build-and-train:
     runs-on: ubuntu-latest
     steps:
-      # ... 您所有的步骤（检出、登录、构建、启动训练）都保持不变 ...
       - name: Checkout repository
         uses: actions/checkout@v3
 
